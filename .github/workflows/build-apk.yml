@@ -1,0 +1,47 @@
+name: Build APK SNIE Agent
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Récupérer le code
+        uses: actions/checkout@v4
+
+      - name: Installer Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Installer Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.24.x
+
+      - name: Générer la plateforme Android
+        run: flutter create . --platforms=android --project-name snie_agent
+
+      - name: Déclarer les permissions Android (INTERNET + GPS)
+        run: |
+          MANIFEST=android/app/src/main/AndroidManifest.xml
+          sed -i 's#<application#<uses-permission android:name="android.permission.INTERNET"/>\n    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>\n    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>\n    <application#' "$MANIFEST"
+          cat "$MANIFEST"
+
+      - name: Récupérer les dépendances
+        run: flutter pub get
+
+      - name: Compiler l'APK (release)
+        run: flutter build apk --release
+
+      - name: Publier l'APK en artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: snie-agent-apk
+          path: build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
