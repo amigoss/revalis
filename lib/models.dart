@@ -45,4 +45,22 @@ const etapesFr = {
   'valorisation': 'Valorisation',
   'produit_expedie': 'Produit / Expédition',
 };
-const matieres = ['PET','PEHD','PP','FILMS_PE','PAPIER','CARTON'];
+const matieres = ['PET','PEHD','PP','FILMS_PE','PAPIER','CARTON','PLASTIQUE_NON_TRIE'];
+const matieresFr = {
+  'PET': 'PET',
+  'PEHD': 'PEHD',
+  'PP': 'PP',
+  'FILMS_PE': 'Films PE',
+  'PAPIER': 'Papier',
+  'CARTON': 'Carton',
+  'PLASTIQUE_NON_TRIE': 'Plastique non trié',
+};
+String matiereFr(String m) => matieresFr[m] ?? m;
+
+/// Un fournisseur est une organisation qui apporte de la matière :
+/// particulier, coopérative ou entreprise.
+const typesFournisseur = {
+  'particulier': 'Particulier',
+  'cooperative': 'Coopérative',
+  'entreprise': 'Entreprise',
+};

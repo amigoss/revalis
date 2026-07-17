@@ -62,7 +62,7 @@ class _MesLotsScreenState extends State<MesLotsScreen> {
                   Text(l.numero,
                       style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 14.5)),
                   const SizedBox(height: 3),
-                  Text('${l.matiere} · ${l.poidsKg} kg · ${l.commune}',
+                  Text('${matiereFr(l.matiere)} · ${l.poidsKg} kg · ${l.commune}',
                       style: const TextStyle(fontSize: 12, color: SnieColors.dim)),
                 ]),
               ),

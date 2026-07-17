@@ -17,7 +17,7 @@ class NouveauLotScreen extends StatefulWidget {
 class _NouveauLotScreenState extends State<NouveauLotScreen> {
   final _kg = TextEditingController();
   String _matiere = matieres.first;
-  RefItem? _commune, _coop;
+  RefItem? _commune, _fournisseur;
   Map<String, List<RefItem>>? _refs;
   String? _gpsLabel;
   bool _busy = false;
@@ -35,7 +35,8 @@ class _NouveauLotScreenState extends State<NouveauLotScreen> {
       setState(() {
         _refs = r;
         _commune = r['communes']!.isNotEmpty ? r['communes']!.first : null;
-        _coop = r['cooperatives']!.isNotEmpty ? r['cooperatives']!.first : null;
+        _fournisseur =
+            r['fournisseurs']!.isNotEmpty ? r['fournisseurs']!.first : null;
       });
     } catch (e) {
       if (mounted) {
@@ -66,7 +67,7 @@ class _NouveauLotScreenState extends State<NouveauLotScreen> {
       'matiere': _matiere,
       'poids_kg': kg,
       'commune_id': _commune?.id,
-      'cooperative_id': _coop?.id,
+      'cooperative_id': _fournisseur?.id, // colonne DB historique = fournisseur
       'horodatage_terrain': DateTime.now().toIso8601String(),
       'position': LocationService.toWkt(pos),
     };
@@ -89,6 +90,65 @@ class _NouveauLotScreenState extends State<NouveauLotScreen> {
       }
     } finally {
       if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  /// Boîte de dialogue : créer un fournisseur (particulier, coopérative,
+  /// entreprise) et le sélectionner immédiatement. Réseau requis.
+  Future<void> _nouveauFournisseur() async {
+    final nomCtrl = TextEditingController();
+    String type = 'particulier';
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: SnieColors.panel,
+          title: const Text('Nouveau fournisseur', style: TextStyle(fontSize: 16)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: nomCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(labelText: 'Nom du fournisseur'),
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<String>(
+              value: type,
+              decoration: const InputDecoration(labelText: 'Type'),
+              dropdownColor: SnieColors.panel2,
+              items: typesFournisseur.entries
+                  .map((e) => DropdownMenuItem(value: e.key, child: Text(e.value)))
+                  .toList(),
+              onChanged: (v) => setDlg(() => type = v!),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annuler')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Créer', style: TextStyle(color: SnieColors.lime))),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || nomCtrl.text.trim().isEmpty) return;
+    try {
+      final item =
+          await SnieService.creerFournisseur(nomCtrl.text.trim(), type);
+      setState(() {
+        _refs!['fournisseurs']!.add(item);
+        _fournisseur = item;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Fournisseur "${nomCtrl.text.trim()}" créé.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Création impossible (réseau requis) : $e')));
+      }
     }
   }
 
@@ -115,7 +175,9 @@ class _NouveauLotScreenState extends State<NouveauLotScreen> {
           value: _matiere,
           decoration: const InputDecoration(labelText: 'Matière'),
           dropdownColor: SnieColors.panel2,
-          items: matieres.map((m) => DropdownMenuItem(value: m, child: Text(m))).toList(),
+          items: matieres
+              .map((m) => DropdownMenuItem(value: m, child: Text(matiereFr(m))))
+              .toList(),
           onChanged: (v) => setState(() => _matiere = v!),
         ),
         const SizedBox(height: 14),
@@ -137,15 +199,28 @@ class _NouveauLotScreenState extends State<NouveauLotScreen> {
             onChanged: (v) => setState(() => _commune = v),
           ),
           const SizedBox(height: 14),
-          DropdownButtonFormField<RefItem>(
-            value: _coop,
-            decoration: const InputDecoration(labelText: 'Coopérative'),
-            dropdownColor: SnieColors.panel2,
-            items: refs['cooperatives']!
-                .map((c) => DropdownMenuItem(value: c, child: Text(c.nom)))
-                .toList(),
-            onChanged: (v) => setState(() => _coop = v),
-          ),
+          Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+            Expanded(
+              child: DropdownButtonFormField<RefItem>(
+                value: _fournisseur,
+                isExpanded: true,
+                decoration: const InputDecoration(labelText: 'Fournisseur'),
+                dropdownColor: SnieColors.panel2,
+                items: refs['fournisseurs']!
+                    .map((c) => DropdownMenuItem(
+                        value: c,
+                        child: Text(c.nom, overflow: TextOverflow.ellipsis)))
+                    .toList(),
+                onChanged: (v) => setState(() => _fournisseur = v),
+              ),
+            ),
+            const SizedBox(width: 8),
+            IconButton(
+              tooltip: 'Nouveau fournisseur',
+              onPressed: _nouveauFournisseur,
+              icon: const Icon(Icons.add_circle_outline, color: SnieColors.lime),
+            ),
+          ]),
         ] else
           const Padding(
             padding: EdgeInsets.symmetric(vertical: 10),

@@ -98,6 +98,73 @@ class _TransfertScreenState extends State<TransfertScreen> {
     }
   }
 
+  /// Boîte de dialogue : créer un point de collecte (code attribué
+  /// automatiquement) et le sélectionner immédiatement. Réseau requis.
+  Future<void> _nouveauPointCollecte() async {
+    final refs = _refs;
+    if (refs == null) return;
+    final nomCtrl = TextEditingController();
+    RefItem? commune =
+        refs['communes']!.isNotEmpty ? refs['communes']!.first : null;
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDlg) => AlertDialog(
+          backgroundColor: SnieColors.panel,
+          title: const Text('Nouveau point de collecte',
+              style: TextStyle(fontSize: 16)),
+          content: Column(mainAxisSize: MainAxisSize.min, children: [
+            TextField(
+              controller: nomCtrl,
+              autofocus: true,
+              decoration: const InputDecoration(
+                  labelText: 'Nom du point de collecte',
+                  hintText: 'ex : Marché central — quai 2'),
+            ),
+            const SizedBox(height: 14),
+            DropdownButtonFormField<RefItem>(
+              value: commune,
+              isExpanded: true,
+              decoration: const InputDecoration(labelText: 'Commune'),
+              dropdownColor: SnieColors.panel2,
+              items: refs['communes']!
+                  .map((c) => DropdownMenuItem(value: c, child: Text(c.nom)))
+                  .toList(),
+              onChanged: (v) => setDlg(() => commune = v),
+            ),
+          ]),
+          actions: [
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Annuler')),
+            TextButton(
+                onPressed: () => Navigator.pop(ctx, true),
+                child: const Text('Créer',
+                    style: TextStyle(color: SnieColors.lime))),
+          ],
+        ),
+      ),
+    );
+    if (ok != true || nomCtrl.text.trim().isEmpty) return;
+    try {
+      final item = await SnieService.creerPointCollecte(
+          nomCtrl.text.trim(), commune?.id);
+      setState(() {
+        _refs!['sites']!.add(item);
+        _site = item;
+      });
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Point de collecte "${nomCtrl.text.trim()}" créé.')));
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+            content: Text('Création impossible (réseau requis) : $e')));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final lots = _lots, refs = _refs;
@@ -118,7 +185,7 @@ class _TransfertScreenState extends State<TransfertScreen> {
           items: lots
               .map((l) => DropdownMenuItem(
                   value: l,
-                  child: Text('${l.numero} · ${l.matiere} · ${etapesFr[l.etape]}',
+                  child: Text('${l.numero} · ${matiereFr(l.matiere)} · ${etapesFr[l.etape]}',
                       overflow: TextOverflow.ellipsis)))
               .toList(),
           onChanged: (v) => setState(() {
@@ -147,17 +214,28 @@ class _TransfertScreenState extends State<TransfertScreen> {
               hintText: _lot != null ? 'pesée initiale : ${_lot!.poidsKg} kg' : null),
         ),
         const SizedBox(height: 14),
-        DropdownButtonFormField<RefItem>(
-          value: _site,
-          isExpanded: true,
-          decoration: const InputDecoration(labelText: 'Site'),
-          dropdownColor: SnieColors.panel2,
-          items: refs['sites']!
-              .map((s) => DropdownMenuItem(
-                  value: s, child: Text(s.nom, overflow: TextOverflow.ellipsis)))
-              .toList(),
-          onChanged: (v) => setState(() => _site = v),
-        ),
+        Row(crossAxisAlignment: CrossAxisAlignment.center, children: [
+          Expanded(
+            child: DropdownButtonFormField<RefItem>(
+              value: _site,
+              isExpanded: true,
+              decoration:
+                  const InputDecoration(labelText: 'Site / point de collecte'),
+              dropdownColor: SnieColors.panel2,
+              items: refs['sites']!
+                  .map((s) => DropdownMenuItem(
+                      value: s, child: Text(s.nom, overflow: TextOverflow.ellipsis)))
+                  .toList(),
+              onChanged: (v) => setState(() => _site = v),
+            ),
+          ),
+          const SizedBox(width: 8),
+          IconButton(
+            tooltip: 'Nouveau point de collecte',
+            onPressed: _nouveauPointCollecte,
+            icon: const Icon(Icons.add_circle_outline, color: SnieColors.lime),
+          ),
+        ]),
         const SizedBox(height: 24),
         ElevatedButton(
           onPressed: _busy || _lot == null ? null : _submit,

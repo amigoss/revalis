@@ -38,23 +38,27 @@ class SnieService {
     try {
       final results = await Future.wait([
         _sb.from('collectivites').select('id, nom').eq('niveau', 'commune').limit(200),
-        _sb.from('organisations').select('id, nom').eq('type', 'cooperative').limit(200),
+        _sb.from('organisations').select('id, nom, type')
+            .inFilter('type', ['cooperative', 'particulier', 'entreprise']).limit(200),
         _sb.from('sites').select('id, code, nom').limit(200),
       ]);
       final refs = {
         'communes': (results[0] as List).map((j) => RefItem.fromJson(j)).toList(),
-        'cooperatives': (results[1] as List).map((j) => RefItem.fromJson(j)).toList(),
+        'fournisseurs': (results[1] as List)
+            .map((j) => RefItem(j['id'],
+                '${j['nom']} — ${typesFournisseur[j['type']] ?? j['type']}'))
+            .toList(),
         'sites': (results[2] as List)
             .map((j) => RefItem(j['id'], '${j['code']} — ${j['nom']}'))
             .toList(),
       };
-      await prefs.setString('snie_refs_cache', jsonEncode({
+      await prefs.setString('snie_refs_cache_v2', jsonEncode({
         for (final e in refs.entries)
           e.key: e.value.map((r) => {'id': r.id, 'nom': r.nom}).toList()
       }));
       return refs;
     } catch (_) {
-      final raw = prefs.getString('snie_refs_cache');
+      final raw = prefs.getString('snie_refs_cache_v2');
       if (raw == null) rethrow;
       final j = jsonDecode(raw) as Map<String, dynamic>;
       return {
@@ -62,6 +66,35 @@ class SnieService {
           e.key: (e.value as List).map((x) => RefItem(x['id'], x['nom'])).toList()
       };
     }
+  }
+
+  // ---------- CRÉATION DE RÉFÉRENTIELS (réseau requis) ----------
+  /// Nouveau fournisseur : particulier, coopérative ou entreprise.
+  static Future<RefItem> creerFournisseur(String nom, String type) async {
+    final j = await _sb
+        .from('organisations')
+        .insert({'nom': nom, 'type': type})
+        .select('id, nom, type')
+        .single();
+    return RefItem(
+        j['id'], '${j['nom']} — ${typesFournisseur[j['type']] ?? j['type']}');
+  }
+
+  /// Nouveau point de collecte (site de type point_apport).
+  static Future<RefItem> creerPointCollecte(String nom, String? communeId) async {
+    final code =
+        'PC-${DateTime.now().millisecondsSinceEpoch.toRadixString(36).toUpperCase()}';
+    final j = await _sb
+        .from('sites')
+        .insert({
+          'code': code,
+          'nom': nom,
+          'type': 'point_apport',
+          'commune_id': communeId,
+        })
+        .select('id, code, nom')
+        .single();
+    return RefItem(j['id'], '${j['code']} — ${j['nom']}');
   }
 
   // ---------- MES LOTS (avec cache hors-ligne) ----------
